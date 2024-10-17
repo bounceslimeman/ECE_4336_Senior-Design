@@ -119,6 +119,23 @@ sdr.tx([iq0, iq1])   # Send Tx data.
 for r in range(20):    # grab several buffers to give the AGC time to react (if AGC is set to "slow_attack" instead of "manual")
     data = sdr.rx()
 
-
+Rx_0=data[0]
+Rx_1=data[1]
+Rx_total = Rx_0 + Rx_1
+NumSamples = len(Rx_total)
+win = np.hamming(NumSamples)
+y = Rx_total * win
+sp = np.absolute(np.fft.fft(y))
+sp = sp[1:-1]
+sp = np.fft.fftshift(sp)
+s_mag = np.abs(sp) / (np.sum(win)/2)    # Scale FFT by window and /2 since we are using half the FFT spectrum
+s_dbfs = 20*np.log10(s_mag/(2**12))     # Pluto is a 12 bit ADC, so use that to convert to dBFS
+xf = np.fft.fftfreq(NumSamples, ts)
+xf = np.fft.fftshift(xf[1:-1])/1e6
+plt.plot(xf, s_dbfs)
+plt.xlabel("frequency [MHz]")
+plt.ylabel("dBfs")
+plt.draw()
+plt.show()
 
 
