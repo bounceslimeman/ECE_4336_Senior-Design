@@ -89,7 +89,6 @@ sdr.rx_buffer_size = int(num_samps)
 '''Configure Tx properties'''
 
 sdr.tx_enabled_channels = [0, 1] # new channel enables
-
 sdr.tx_rf_bandwidth = int(samp_rate)
 sdr.tx_lo = int(tx_lo)
 sdr.tx_cyclic_buffer = True
@@ -102,8 +101,8 @@ print("RX LO %s" % (sdr.rx_lo))
 
 # Program the Tx with some data
 fs = int(sdr.sample_rate)
-fc0 = int(2e6)
-fc1 = int(5e6)
+fc0 = int(2.4e6)
+fc1 = int(2.4e6)
 N = 2**16
 ts = 1 / float(fs)
 t = np.arange(0, N * ts, ts)
