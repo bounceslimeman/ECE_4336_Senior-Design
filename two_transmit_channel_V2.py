@@ -58,10 +58,97 @@ sdr.tx_buffer_size = int(2**18)                # buffer for trasmitting set at 2
 
 sdr._rxadc.set_kernel_buffers_count(1)         # Reduces buffers to avoid stale data.
 
+sdr.tx_cyclic_buffer = True                    # ??? needed but I dont know why tbh
 
 
+#Program Transmission
+
+fs = int(sdr.sample_rate)                      # Sample rate
+N = 2**16                                      # Number of samples
+ts = 1 / float(fs)                             # Sampling period.
+t = np.arange(0, N * ts, ts)                   # Array of time steps for each sample.
 
 
+                                               # In-phase and quadrature-phase components of a sinusoidal signal (cosine and sine)
+
+i0 = np.cos(2 * np.pi * t * fc0) * 2 ** 14     # I/Q data for transmit channel 0
+q0 = np.sin(2 * np.pi * t * fc0) * 2 ** 14
+iq0 = i0 + 1j * q0                             # Combined I/Q signal for channel 0
+
+                                               # I/Q data for transmit channel 1 (could be the same or different)
+i1 = np.cos(2 * np.pi * t * fc0) * 2 ** 14     # Example signal for channel 1
+q1 = np.sin(2 * np.pi * t * fc0) * 2 ** 14
+iq1 = i1 + 1j * q1                             # Combined I/Q signal for channel 1
+
+sdr.tx([iq0, iq1])                             # Send data to both Tx channels (0 and 1)
+
+#Frequency Bin Setup
+xf = np.fft.fftfreq(NumSamples, ts)            # FFT frequency bins, shifted and scaled to MHz.
+xf = np.fft.fftshift(xf) / 1e6
+
+signal_start = int(NumSamples * (samp_rate / 2 + fc0 / 2) / samp_rate)    # Define the frequency range of interest based on fc0
+signal_end = int(NumSamples * (samp_rate / 2 + fc0 * 2) / samp_rate)
 
 
+def calcTheta(phase):  # Calculates the steering angle based on phase shift using the distance between antennas and the RF frequency.
+    arcsin_arg = np.deg2rad(phase)*3E8/(2*np.pi*rx_lo*d)
+    arcsin_arg = max(min(1, arcsin_arg), -1)
+    calc_theta = np.rad2deg(np.arcsin(arcsin_arg))
+    return calc_theta
 
+def dbfs(raw_data):    # Converts raw IQ data into decibels full scale (dBFS) using FFT.
+    NumSamples = len(raw_data)
+    win = np.hamming(NumSamples)
+    y = raw_data * win
+    s_fft = np.fft.fft(y) / np.sum(win)
+    s_shift = np.fft.fftshift(s_fft)
+    s_dbfs = 20 * np.log10(np.abs(s_shift) / (2**11))
+    return s_dbfs
+
+# Data collection and scanning
+
+for i in range(20):
+    data = sdr.rx()
+    
+for i in range(num_scans):  # This block performs multiple scans, adjusting the phase shift between Rx_0 and Rx_1, summing the signals, and finding the peak.
+    data = sdr.rx()
+    Rx_0 = data[0]
+    Rx_1 = data[1]
+    peak_sum = []
+    delay_phases = np.arange(-180, 180, 2)
+    for phase_delay in delay_phases:
+        delayed_Rx_1 = Rx_1 * np.exp(1j * np.deg2rad(phase_delay + phase_cal))
+        delayed_sum = dbfs(Rx_0 + delayed_Rx_1)
+        peak_sum.append(np.max(delayed_sum[signal_start:signal_end]))
+    peak_dbfs = np.max(peak_sum)
+    peak_delay_index = np.where(peak_sum == peak_dbfs)
+    peak_delay = delay_phases[peak_delay_index[0][0]]
+    steer_angle = int(calcTheta(peak_delay))         # It calculates the steering angle based on the peak phase delay.
+    
+    # Depending on Plot_Compass, it either plots the phase shift vs. peak sum or shows a compass-style polar plot indicating the steering angle.
+    if Plot_Compass == False:
+        plt.plot(delay_phases, peak_sum)
+        plt.axvline(x=peak_delay, color='r', linestyle=':')
+        plt.text(-180, -26, f"Peak signal occurs with phase shift = {round(peak_delay,1)} deg")
+        plt.text(-180, -28, f"If d={int(d*1000)}mm, then steering angle = {steer_angle} deg")
+        plt.ylim(top=0, bottom=-30)
+        plt.xlabel("phase shift [deg]")
+        plt.ylabel("Rx0 + Rx1 [dBfs]")
+        plt.draw()
+        plt.show()
+    else:
+        fig = plt.figure(figsize=(3, 3))
+        ax = plt.subplot(111, polar=True)
+        ax.set_theta_zero_location('N')
+        ax.set_theta_direction(-1)
+        ax.set_thetamin(-90)
+        ax.set_thetamax(90)
+        ax.set_rlim(bottom=-20, top=0)
+        ax.set_yticklabels([])
+        ax.vlines(np.deg2rad(steer_angle), 0, -20)
+        ax.text(-2, -14, "{} deg".format(steer_angle))
+        plt.draw()
+        plt.show()
+
+sdr.tx_destroy_buffer() # Destroys the transmit buffer to clean up.
+if i > 40: print('\a')  # outputs a when its done
