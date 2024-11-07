@@ -18,6 +18,8 @@ rx_mode = "manual"                             # Gain control mode for the recei
 rx_gain0 = 40                                  # Receive gains for channels 0 and 1.
 rx_gain1 = 40
 
+desiredPhaseShift =  input("Please input the desired phase shift in degrees: ")
+
 tx_lo = rx_lo                                  # Set transmit Frequency equal to recieve frequency which is 2.4 GHz 
 
 tx_gain0 = -3                                  # Transmit gain set to -3 dB.
@@ -75,9 +77,11 @@ i0 = np.cos(2 * np.pi * t * fc0) * 2 ** 14     # I/Q data for transmit channel 0
 q0 = np.sin(2 * np.pi * t * fc0) * 2 ** 14
 iq0 = i0 + 1j * q0                             # Combined I/Q signal for channel 0
 
+phase_shift = np.pi * (desiredPhaseShift / np.pi )
+
                                                # I/Q data for transmit channel 1 (could be the same or different)
-i1 = np.cos(2 * np.pi * t * fc0) * 2 ** 14     # Example signal for channel 1
-q1 = np.sin(2 * np.pi * t * fc0) * 2 ** 14
+i1 = np.cos(2 * np.pi * t * fc0 + phase_shift) * 2 ** 14     # Example signal for channel 1
+q1 = np.sin(2 * np.pi * t * fc0 + phase_shift) * 2 ** 14
 iq1 = i1 + 1j * q1                             # Combined I/Q signal for channel 1
 
 sdr.tx([iq0, iq1])                             # Send data to both Tx channels (0 and 1)
