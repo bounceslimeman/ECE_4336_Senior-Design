@@ -71,13 +71,15 @@ ts = 1 / float(fs)                             # Sampling period.
 t = np.arange(0, N * ts, ts)                   # Array of time steps for each sample.
 
 
+phase_shift = np.pi * (desiredPhaseShift / np.pi )
+
                                                # In-phase and quadrature-phase components of a sinusoidal signal (cosine and sine)
 
-i0 = np.cos(2 * np.pi * t * fc0) * 2 ** 14     # I/Q data for transmit channel 0
-q0 = np.sin(2 * np.pi * t * fc0) * 2 ** 14
+i0 = np.cos(2 * np.pi * t * fc0 + phase_shift) * 2 ** 14     # I/Q data for transmit channel 0
+q0 = np.sin(2 * np.pi * t * fc0 + phase_shift) * 2 ** 14
 iq0 = i0 + 1j * q0                             # Combined I/Q signal for channel 0
 
-phase_shift = np.pi * (desiredPhaseShift / np.pi )
+
 
                                                # I/Q data for transmit channel 1 (could be the same or different)
 i1 = np.cos(2 * np.pi * t * fc0 + phase_shift) * 2 ** 14     # Example signal for channel 1
