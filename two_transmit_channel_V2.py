@@ -26,9 +26,9 @@ tx_gain0 = -3                                  # Transmit gain set to -3 dB.
 tx_gain1 = -3                                  # Transmit gain set to -3 dB.
 
 fc0 = int(200e3)                               # Intermediate frequency for a carrier signal (200 kHz).
-phase_cal = 0                                  # Calibration phase offset in degrees.
+phase_cal = 0                           # Calibration phase offset in degrees.
 num_scans = 80                                 # Number of scanning iterations.
-Plot_Compass = True                            # Boolean flag indicating whether to plot compass-style visualization. Target line or waveform
+Plot_Compass = False                            # Boolean flag indicating whether to plot compass-style visualization. Target line or waveform
 
 d_wavelength = 0.5                             # Distance between receive antennas as a fraction of the wavelength (0.5). distance was designed around wavelength
 wavelength = 3E8/rx_lo                         # Compute the wavelength of the RF carrier using the speed of light (3 × 10^8 m/s) divided by rx_lo. 
@@ -70,7 +70,6 @@ N = 2**16                                      # Number of samples
 ts = 1 / float(fs)                             # Sampling period.
 t = np.arange(0, N * ts, ts)                   # Array of time steps for each sample.
 
-
                                                # In-phase and quadrature-phase components of a sinusoidal signal (cosine and sine)
 
 i0 = np.cos(2 * np.pi * t * fc0) * 2 ** 14     # I/Q data for transmit channel 0
@@ -93,7 +92,6 @@ xf = np.fft.fftshift(xf) / 1e6
 signal_start = int(NumSamples * (samp_rate / 2 + fc0 / 2) / samp_rate)    # Define the frequency range of interest based on fc0
 signal_end = int(NumSamples * (samp_rate / 2 + fc0 * 2) / samp_rate)
 
-
 def calcTheta(phase):  # Calculates the steering angle based on phase shift using the distance between antennas and the RF frequency.
     arcsin_arg = np.deg2rad(phase)*3E8/(2*np.pi*rx_lo*d)
     arcsin_arg = max(min(1, arcsin_arg), -1)
@@ -110,6 +108,7 @@ def dbfs(raw_data):    # Converts raw IQ data into decibels full scale (dBFS) us
     return s_dbfs
 
 # Data collection and scanning
+max_gains = []
 
 for i in range(20):
     data = sdr.rx()
@@ -125,6 +124,7 @@ for i in range(num_scans):  # This block performs multiple scans, adjusting the 
         delayed_sum = dbfs(Rx_0 + delayed_Rx_1)
         peak_sum.append(np.max(delayed_sum[signal_start:signal_end]))
     peak_dbfs = np.max(peak_sum)
+    max_gains.append(peak_dbfs)  # Store max gain for averaging
     peak_delay_index = np.where(peak_sum == peak_dbfs)
     peak_delay = delay_phases[peak_delay_index[0][0]]
     steer_angle = int(calcTheta(peak_delay))         # It calculates the steering angle based on the peak phase delay.
@@ -135,10 +135,16 @@ for i in range(num_scans):  # This block performs multiple scans, adjusting the 
         plt.axvline(x=peak_delay, color='r', linestyle=':')
         plt.text(-180, -26, f"Peak signal occurs with phase shift = {round(peak_delay,1)} deg")
         plt.text(-180, -28, f"If d={int(d*1000)}mm, then steering angle = {steer_angle} deg")
+       
+        max_gain = np.max(peak_sum)
+        avg_max_gain = np.mean(max_gains)  # Calculate the average max gain
+        plt.text(140, 0, f"Gain = {max_gain:.1f} dB\nAvg Gain = {avg_max_gain:.1f} dB", fontsize=10, ha='right', va='top')  # Display both max and avg gain
+       
         plt.ylim(top=0, bottom=-30)
         plt.xlabel("phase shift [deg]")
         plt.ylabel("Rx0 + Rx1 [dBfs]")
-        plt.draw()
+        plt.title("Phase Shift vs. Peak Sum")
+        plt.grid(True)
         plt.show()
     else:
         fig = plt.figure(figsize=(3, 3))
@@ -150,9 +156,10 @@ for i in range(num_scans):  # This block performs multiple scans, adjusting the 
         ax.set_rlim(bottom=-20, top=0)
         ax.set_yticklabels([])
         ax.vlines(np.deg2rad(steer_angle), 0, -20)
-        ax.text(-2, -14, "{} deg".format(steer_angle))
-        plt.draw()
+        ax.text(np.deg2rad(steer_angle), -10, f"{steer_angle} deg", va='bottom', ha='center')
+        plt.title("Steering Angle Indication")
         plt.show()
 
-sdr.tx_destroy_buffer() # Destroys the transmit buffer to clean up.
-if i > 40: print('\a')  # outputs a when its done
+sdr.tx_destroy_buffer()  # Destroys the transmit buffer to clean up.
+if i > 40:
+    print('\a')  # Outputs a sound when done
